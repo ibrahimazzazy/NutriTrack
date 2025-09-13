@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NutriTrack</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background:#f8fafc; font-family:Inter, sans-serif; }
+    .pill{background:#f3f4f6;border:1px solid #e5e7eb;padding:.25rem .5rem;border-radius:9999px;font-size:12px}
+    .small-muted{font-size:12px;color:#6b7280}
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-6">
+  <div class="w-full max-w-4xl bg-white shadow rounded p-6 mb-6 text-center">
+    <h1 class="text-3xl font-bold mb-2">NutriTrack</h1>
+    <p class="text-gray-600 mb-4">Track your meals & macros</p>
+
+    <input id="meal-name" class="w-full border px-3 py-2 rounded mb-3" placeholder="Meal name (e.g. Lunch)">
+    <input id="food-search" class="w-full border px-3 py-2 rounded mb-1" placeholder="Search food (e.g. chicken, rice, egg)">
+    <div id="suggestions" class="border rounded bg-white hidden"></div>
+    <div id="type-pill" class="pill inline-block mt-2 mb-4">Type: —</div>
+
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div><label class="small-muted">Calories</label><input id="manual-calories" type="number" class="w-full border px-3 py-2 rounded" value="0"></div>
+      <div><label class="small-muted">Protein</label><input id="manual-protein" type="number" class="w-full border px-3 py-2 rounded" value="0"></div>
+      <div><label class="small-muted">Carbs</label><input id="manual-carbs" type="number" class="w-full border px-3 py-2 rounded" value="0"></div>
+      <div><label class="small-muted">Fat</label><input id="manual-fat" type="number" class="w-full border px-3 py-2 rounded" value="0"></div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div><label class="small-muted">Weight (g)</label><input id="weight-input" type="number" class="w-full border px-3 py-2 rounded" value="100"></div>
+      <div><label class="small-muted">Quantity</label><input id="quantity-input" type="number" class="w-full border px-3 py-2 rounded" value="1"></div>
+    </div>
+
+    <button id="add-food-btn" class="w-full bg-green-600 text-white py-2 rounded mb-3">Add Food</button>
+
+    <h3 class="font-medium text-left">Current Meal</h3>
+    <div id="current-items" class="small-muted mb-2">No items yet.</div>
+    <div id="current-totals" class="small-muted mb-4"></div>
+
+    <div class="flex gap-2 mb-3">
+      <button id="save-meal-btn" class="flex-1 bg-blue-600 text-white py-2 rounded">Save Meal</button>
+      <button id="clear-current-btn" class="flex-1 bg-gray-200 py-2 rounded">Clear Meal</button>
+    </div>
+  </div>
+
+  <!-- Big Reset Button -->
+  <button id="reset-btn-big" class="w-full max-w-4xl bg-black text-white py-2 rounded mb-6">Reset All</button>
+
+  <!-- Two-column layout -->
+  <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white p-4 rounded shadow text-center">
+      <h3 class="small-muted">Today's Calories</h3>
+      <div id="total-calories" class="text-2xl font-bold">0</div>
+      <div id="total-protein">0g Protein</div>
+      <div id="total-carbs">0g Carbs</div>
+      <div id="total-fat">0g Fat</div>
+    </div>
+    <div class="bg-white p-4 rounded shadow flex flex-col">
+      <h3 class="font-medium mb-2">Nutrition Chat Helper</h3>
+      <div id="chat-log" class="border rounded p-2 mb-2 overflow-auto small-muted">Ask me anything about food.</div>
+      <div class="flex gap-2">
+        <input id="chat-input" class="flex-1 border px-3 py-2 rounded" placeholder="e.g. protein in chicken breast">
+        <button id="chat-send" class="bg-indigo-600 text-white px-3 py-2 rounded">Ask</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Saved Meals -->
+  <div class="w-full max-w-4xl bg-white p-4 rounded shadow mb-6">
+    <div class="flex justify-between items-center mb-2">
+      <h3 class="font-medium">Saved Meals</h3>
+      <button id="reset-btn" class="text-red-600 small-muted">Reset All</button>
+    </div>
+    <div id="meals-container" class="small-muted">No meals saved</div>
+  </div>
+
+<script>
+// ===== FOOD DATABASE =====
+const FOOD_DB = {
+  // --- Proteins ---
+  "chicken breast (cooked)": {type:"weight",per100:{calories:165,protein:31,carbs:0,fat:3.6}},
+  "beef steak (grilled)": {type:"weight",per100:{calories:271,protein:25,carbs:0,fat:19}},
+  "salmon (cooked)": {type:"weight",per100:{calories:206,protein:22,carbs:0,fat:13}},
+  "tuna (canned in water)": {type:"weight",per100:{calories:116,protein:26,carbs:0,fat:1}},
+  "egg (large)": {type:"unit",perUnit:{calories:78,protein:6.3,carbs:0.6,fat:5.3,unitName:"large egg"}},
+  "milk (whole)": {type:"weight",per100:{calories:61,protein:3.2,carbs:4.8,fat:3.3}},
+  "cheddar cheese": {type:"weight",per100:{calories:403,protein:25,carbs:1.3,fat:33}},
+  "greek yogurt (plain)": {type:"weight",per100:{calories:59,protein:10,carbs:3.6,fat:0.4}},
+
+  // --- Carbs ---
+  "white rice (cooked)": {type:"weight",per100:{calories:130,protein:2.7,carbs:28,fat:0.3}},
+  "brown rice (cooked)": {type:"weight",per100:{calories:112,protein:2.6,carbs:23,fat:0.9}},
+  "pasta (cooked)": {type:"weight",per100:{calories:131,protein:5,carbs:25,fat:1.1}},
+  "oats (dry)": {type:"weight",per100:{calories:389,protein:17,carbs:66,fat:7}},
+  "potato (boiled)": {type:"weight",per100:{calories:87,protein:2,carbs:20,fat:0.1}},
+  "sweet potato (boiled)": {type:"weight",per100:{calories:86,protein:1.6,carbs:20,fat:0.1}},
+  "white bread (slice ~30g)": {type:"unit",perUnit:{calories:80,protein:2.7,carbs:14,fat:1,unitName:"slice (~30g)"}},
+  "whole wheat bread (slice ~30g)": {type:"unit",perUnit:{calories:82,protein:4,carbs:14,fat:1,unitName:"slice (~30g)"}},
+
+  // --- Fruits ---
+  "apple (medium)": {type:"unit",perUnit:{calories:95,protein:0.5,carbs:25,fat:0.3,unitName:"apple (medium)"}},
+  "banana (medium)": {type:"unit",perUnit:{calories:105,protein:1.3,carbs:27,fat:0.4,unitName:"banana (medium)"}},
+  "orange (medium)": {type:"unit",perUnit:{calories:62,protein:1.2,carbs:15,fat:0.2,unitName:"orange (medium)"}},
+  "grapes (100g)": {type:"weight",per100:{calories:69,protein:0.7,carbs:18,fat:0.2}},
+  "strawberries (100g)": {type:"weight",per100:{calories:32,protein:0.7,carbs:8,fat:0.3}},
+  "watermelon (100g)": {type:"weight",per100:{calories:30,protein:0.6,carbs:8,fat:0.2}},
+  "avocado (100g)": {type:"weight",per100:{calories:160,protein:2,carbs:9,fat:15}},
+
+  // --- Vegetables ---
+  "broccoli (100g)": {type:"weight",per100:{calories:55,protein:3.7,carbs:11,fat:0.6}},
+  "spinach (100g)": {type:"weight",per100:{calories:23,protein:2.9,carbs:3.6,fat:0.4}},
+  "carrot (100g)": {type:"weight",per100:{calories:41,protein:0.9,carbs:10,fat:0.2}},
+  "tomato (100g)": {type:"weight",per100:{calories:18,protein:0.9,carbs:3.9,fat:0.2}},
+  "cucumber (100g)": {type:"weight",per100:{calories:16,protein:0.7,carbs:4,fat:0.1}},
+  "onion (100g)": {type:"weight",per100:{calories:40,protein:1.1,carbs:9.3,fat:0.1}},
+
+  // --- Snacks & Fats ---
+  "peanut butter (100g)": {type:"weight",per100:{calories:588,protein:25,carbs:20,fat:50}},
+  "almonds (100g)": {type:"weight",per100:{calories:579,protein:21,carbs:22,fat:50}},
+  "olive oil (100g)": {type:"weight",per100:{calories:884,protein:0,carbs:0,fat:100}},
+  "butter (100g)": {type:"weight",per100:{calories:717,protein:0.9,carbs:0.1,fat:81}},
+  "dark chocolate (100g)": {type:"weight",per100:{calories:546,protein:4.9,carbs:61,fat:31}},
+
+  // --- Drinks ---
+  "water (250ml)": {type:"unit",perUnit:{calories:0,protein:0,carbs:0,fat:0,unitName:"glass (250ml)"}},
+  "coffee (no sugar, 250ml)": {type:"unit",perUnit:{calories:2,protein:0.3,carbs:0, fat:0,unitName:"cup (250ml)"}},
+  "tea (no sugar, 250ml)": {type:"unit",perUnit:{calories:2,protein:0,carbs:0, fat:0,unitName:"cup (250ml)"}},
+  "cola (330ml can)": {type:"unit",perUnit:{calories:140,protein:0,carbs:39,fat:0,unitName:"can (330ml)"}},
+  "orange juice (250ml)": {type:"unit",perUnit:{calories:112,protein:1.7,carbs:26,fat:0.5,unitName:"glass (250ml)"}},
+  "beer (330ml)": {type:"unit",perUnit:{calories:150,protein:1.5,carbs:13,fat:0,unitName:"can (330ml)"}},
+  "wine (150ml glass)": {type:"unit",perUnit:{calories:125,protein:0.1,carbs:4,fat:0,unitName:"glass (150ml)"}},
+
+  // --- Aliases ---
+  "toast": {type:"alias",aliasFor:"white bread (slice ~30g)"},
+  "steak": {type:"alias",aliasFor:"beef steak (grilled)"},
+  "fish": {type:"alias",aliasFor:"salmon (cooked)"}
+};
+
+// ===== APP LOGIC =====
+let selectedBase=null;let currentItems=[];let meals=[];
+const STORAGE_KEY='nutritrack_meals_v5';
+
+function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(meals));}
+function loadState(){try{let v=localStorage.getItem(STORAGE_KEY);if(v)meals=JSON.parse(v);}catch(e){}}
+loadState();
+
+function searchFoods(q){q=q.toLowerCase().trim();if(!q)return[];return Object.keys(FOOD_DB).filter(n=>n.includes(q)).map(n=>({name:n,data:FOOD_DB[n]})).slice(0,10);}
+
+function selectFood(name,data){if(data.type==='alias')return selectFood(data.aliasFor,FOOD_DB[data.aliasFor]);
+ if(data.type==='weight'){selectedBase={mode:'w',...data.per100};document.getElementById('type-pill').textContent='Type: per 100g';}
+ if(data.type==='unit'){selectedBase={mode:'u',...data.perUnit};document.getElementById('type-pill').textContent='Type: unit';}
+ applyScaling();}
+
+function applyScaling(){if(!selectedBase)return;let w=parseFloat(weightInput.value)||0;let q=parseFloat(quantityInput.value)||1;
+ if(selectedBase.mode==='w'){let m=(w/100)*q;manualCalories.value=(selectedBase.calories*m).toFixed(1);manualProtein.value=(selectedBase.protein*m).toFixed(1);manualCarbs.value=(selectedBase.carbs*m).toFixed(1);manualFat.value=(selectedBase.fat*m).toFixed(1);}
+ else{let m=q;manualCalories.value=(selectedBase.calories*m).toFixed(1);manualProtein.value=(selectedBase.protein*m).toFixed(1);manualCarbs.value=(selectedBase.carbs*m).toFixed(1);manualFat.value=(selectedBase.fat*m).toFixed(1);}}}
+
+foodSearch.oninput=()=>{let r=searchFoods(foodSearch.value);suggestions.innerHTML='';if(!r.length){suggestions.classList.add('hidden');return;}
+ r.forEach(it=>{let d=document.createElement('div');d.className='p-2 hover:bg-gray-100 cursor-pointer';d.textContent=it.name;d.onclick=()=>selectFood(it.name,it.data);suggestions.appendChild(d);});suggestions.classList.remove('hidden');}};
+weightInput.oninput=applyScaling;quantityInput.oninput=applyScaling;
+
+document.getElementById('add-food-btn').onclick=()=>{let item={id:Date.now(),name:foodSearch.value||'Custom',cal:parseFloat(manualCalories.value)||0,p:parseFloat(manualProtein.value)||0,c:parseFloat(manualCarbs.value)||0,f:parseFloat(manualFat.value)||0};currentItems.push(item);renderCurrent();};
+
+function renderCurrent(){currentItemsEl.innerHTML='';if(!currentItems.length){currentItemsEl.textContent='No items yet.';currentTotalsEl.textContent='';return;}
+ let tot={c:0,p:0,cb:0,f:0};currentItems.forEach((it,i)=>{tot.c+=it.cal;tot.p+=it.p;tot.cb+=it.c;tot.f+=it.f;
+ let d=document.createElement('div');d.className='flex justify-between border p-2 mb-1 rounded';d.innerHTML=`${it.name} - ${it.cal} kcal <button onclick="deleteCurrentItem(${i})" class='text-red-500'>❌</button>`;currentItemsEl.appendChild(d);});
+ currentTotalsEl.textContent=`Totals: ${tot.c.toFixed(1)} kcal · ${tot.p.toFixed(1)}P ${tot.cb.toFixed(1)}C ${tot.f.toFixed(1)}F`;}
+function deleteCurrentItem(i){currentItems.splice(i,1);renderCurrent();}
+
+document.getElementById('save-meal-btn').onclick=()=>{if(!currentItems.length)return;let meal={id:Date.now(),name:document.getElementById('meal-name').value||'Meal',items:currentItems};meals.push(meal);currentItems=[];renderCurrent();renderMeals();updateTotals();saveState();};
+
+function renderMeals(){mealsContainer.innerHTML='';if(!meals.length){mealsContainer.textContent='No meals saved';return;}
+ meals.forEach((m,i)=>{let d=document.createElement('div');d
